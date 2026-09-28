@@ -43,6 +43,7 @@ test("totales separados por moneda, período y tipo con aritmética decimal", ()
     date = "2026-09-01",
   ): Movement => ({
     id: "x",
+    user_id: "author",
     date,
     name: "Prueba",
     amount,

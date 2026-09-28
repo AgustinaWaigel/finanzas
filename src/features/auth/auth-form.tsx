@@ -88,8 +88,7 @@ export function Auth({ configured }: { configured: boolean }) {
               </span>
               <h2>Tu espacio está listo para conectar.</h2>
               <p>
-                Configurá Supabase para activar tu cuenta, guardar movimientos y
-                acceder a tus tickets privados.
+                Configurá Supabase para activar tu cuenta y guardar movimientos.
               </p>
               <ol>
                 <li>Creá un proyecto en Supabase.</li>

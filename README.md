@@ -104,6 +104,10 @@ public/                     Íconos y service worker
 
 ## Verificación y puesta en producción
 
+Los gráficos de barras y distribución usan Recharts con contenedores responsive. Los totales y etiquetas conservan precisión con decimal.js; únicamente las proporciones visuales se convierten a números para dibujar. El selector de día/mes permite consultar los importes también con teclado.
+
+Cada movimiento muestra quién lo cargó originalmente. En Movimientos, el espacio familiar permite filtrar por integrante junto con moneda, tipo y búsqueda. Editar un movimiento no cambia su autor. Si una persona sale del grupo, su historial conserva el identificador y aparece como exintegrante con una referencia a ese identificador.
+
 `npm test` prueba aritmética exacta, separación por moneda/período y la migración en PostgreSQL embebido (PGlite). La prueba SQL crea implementaciones mínimas de `auth` y `storage`, cambia de rol/usuario y comprueba RLS, vínculos entre propietarios, conservación de categorías, precisión y rutas privadas. No reemplaza una prueba real del servicio Auth/Storage de Supabase.
 
 La prueba de navegador `node tests/ui-smoke.mjs` usa Playwright con Edge instalado y un backend interceptado exclusivamente en el proceso de pruebas. Para ejecutarla, arrancá otro servidor dev en puerto 3001 con `NEXT_PUBLIC_SUPABASE_URL=https://clara-test.supabase.co` y `NEXT_PUBLIC_SUPABASE_ANON_KEY=test-public-key-not-a-real-secret`, sin modificar las variables reales de tu proyecto. Recorre movimientos, monedas, presupuestos, categorías y vista anual; verifica la interfaz a 390 px. Los archivos de prueba y capturas están separados de la aplicación y no se suben a Supabase.

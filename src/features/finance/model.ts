@@ -10,6 +10,7 @@ export type Category = {
 export type Currency = { code: string; symbol: string; decimals: number };
 export type Movement = {
   id: string;
+  user_id: string;
   date: string;
   name: string;
   amount: string;

@@ -71,8 +71,8 @@ export function FamilyPanel({
             {family ? (
               <>
                 <p className="help">
-                  Todos pueden ver, agregar, editar y eliminar movimientos,
-                  tickets, categorías y presupuestos del grupo. Los datos del
+                  Todos pueden ver, agregar, editar y eliminar movimientos, 
+                  categorías y presupuestos del grupo. Los datos del
                   espacio personal no se comparten.
                 </p>
                 <div className="family-members">
@@ -236,8 +236,7 @@ export function FamilyPanel({
                   </label>
                   <label className="checkbox">
                     <input name="share" type="checkbox" defaultChecked />
-                    Compartir mis movimientos, categorías, presupuestos y
-                    tickets actuales
+                    Compartir mis movimientos, categorías y presupuestos
                   </label>
                   <p className="help">
                     Si elegís compartir, tus datos actuales pasan al grupo y sus

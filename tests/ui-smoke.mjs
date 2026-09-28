@@ -128,7 +128,7 @@ await context.route("**/*", async (route) => {
     const body = req.postDataJSON();
     if (table === "movements" || table === "budgets")
       assert.equal(typeof body.amount, "string");
-    tables[table].push({ ...body, id: `id-${Date.now()}` });
+    tables[table].push({ user_id: user.id, ...body, id: `id-${Date.now()}` });
     return response(null);
   }
   if (req.method() === "PATCH") {
@@ -217,9 +217,31 @@ try {
     Number(period.slice(5, 7)),
     0,
   ).getDate();
-  assert.equal(await page.locator(".daily-chart button").count(), days);
-  await page.locator(".daily-chart button").first().click();
+  await page.locator(".daily-chart .recharts-surface").waitFor();
+  assert.equal(
+    await page.getByLabel("Ver detalle de un día").locator("option").count(),
+    days + 1,
+  );
+  await page.getByLabel("Ver detalle de un día").selectOption({ index: 1 });
   await page.locator(".chart-detail").waitFor();
+  await page
+    .getByLabel("Ver detalle de un día")
+    .selectOption(tables.movements[0].date);
+  assert.match(
+    await page.locator(".chart-detail").innerText(),
+    /Gastos: \$ 2\.000,10/,
+  );
+  assert.match(
+    await page.locator(".chart-detail").innerText(),
+    /Ingresos: \$ 0,00/,
+  );
+  await page.locator(".recharts-donut .recharts-pie-sector").first().hover({ position: { x: 100, y: 14 } });
+  await page.locator(".recharts-donut .finance-chart-tooltip").waitFor();
+  assert.match(
+    await page.locator(".recharts-donut .finance-chart-tooltip").innerText(),
+    /2\.000,10/,
+  );
+  await page.getByRole("heading", { name: "Tus finanzas, en orden." }).hover();
   await mkdir("test-results", { recursive: true });
   await page.screenshot({
     path: "test-results/desktop.png",
@@ -244,7 +266,11 @@ try {
     .locator("aside")
     .getByRole("button", { name: /^(Vista anual|Ver gastos)$/ })
     .click();
-  assert.equal(await page.locator(".interactive-chart button").count(), 12);
+  await page.locator(".recharts-evolution .recharts-surface").waitFor();
+  assert.equal(
+    await page.getByLabel("Ver detalle de un mes").locator("option").count(),
+    13,
+  );
   await page.getByText("Saldo del año", { exact: true }).waitFor();
   await page
     .getByRole("heading", { name: "Gastos del año por categoría" })
@@ -295,6 +321,54 @@ try {
     new URL(sharedLink).hash,
     "#bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
   );
+  const secondAuthor = "33333333-3333-3333-3333-333333333333";
+  tables.family_members.push({
+    user_id: secondAuthor,
+    family_id: tables.families[0].id,
+    display_name: "Carla",
+  });
+  for (const [id, author, name] of [
+    ["expense-ana", sessionUserId, "Gasto de Ana"],
+    ["expense-carla", secondAuthor, "Gasto de Carla"],
+  ]) {
+    tables.movements.push({
+      id,
+      user_id: author,
+      family_id: tables.families[0].id,
+      date: tables.movements[0].date,
+      name,
+      amount: "20.00",
+      currency: "ARS",
+      kind: "expense",
+      category_id: tables.categories[0].id,
+      note: "",
+      reference: "",
+      receipt_path: null,
+    });
+  }
+  await page.getByRole("button", { name: "Actualizar datos" }).click();
+  await page.getByRole("button", { name: "Movimientos", exact: true }).click();
+  await page.getByLabel("Filtrar por integrante").selectOption(secondAuthor);
+  await page.getByRole("button", { name: /Gasto de Carla/ }).waitFor();
+  assert.equal(await page.locator(".movement").count(), 1);
+  assert.equal(
+    await page.getByText("Cargado por Carla", { exact: true }).count(),
+    1,
+  );
+  await page.getByRole("button", { name: /Gasto de Carla/ }).click();
+  assert.equal(
+    await page
+      .locator("dialog dd")
+      .filter({ hasText: /^Carla$/ })
+      .count(),
+    1,
+  );
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await page.getByLabel("Filtrar por integrante").selectOption(sessionUserId);
+  await page.getByRole("button", { name: /Gasto de Ana/ }).waitFor();
+  assert.equal(await page.locator(".movement").count(), 1);
+  await page.getByLabel("Filtrar por integrante").selectOption("all");
+  assert.equal(await page.locator(".movement").count(), 2);
   await page.getByLabel("Espacio de finanzas").selectOption("personal");
   await page.getByRole("button", { name: "Resumen", exact: true }).click();
   await page

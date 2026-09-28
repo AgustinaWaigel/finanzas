@@ -769,6 +769,51 @@ main {
   flex-direction: column;
   gap: 20px;
 }
+.recharts-evolution {
+  min-width: 480px;
+  height: 250px;
+}
+.recharts-evolution.daily-chart {
+  min-width: 760px;
+}
+.finance-chart-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid #e5ebe7;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 6px 24px #173d2415;
+  font-size: 12px;
+}
+.recharts-donut {
+  width: 100%;
+  max-width: 280px;
+  height: 220px;
+  position: relative;
+  flex-shrink: 0;
+}
+.recharts-donut-total {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  gap: 7px;
+}
+.recharts-donut-total small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.recharts-donut-total strong {
+  font-size: 13px;
+  max-width: 135px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
 .donut {
   width: 158px;
   height: 158px;
@@ -817,6 +862,7 @@ main {
 }
 .list-filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   margin-bottom: 10px;
 }
@@ -824,7 +870,11 @@ main {
   flex: 1;
 }
 .list-filters select {
-  width: 170px;
+  width: 200px;
+}
+.movement .movement-author {
+  color: #60786a;
+  font-size: 11px;
 }
 .budget-grid {
   display: grid;
@@ -998,8 +1048,21 @@ footer span {
 .mobile-only {
   display: none;
 }
-.invitation-card { width: min(460px,calc(100vw - 32px)); margin: 24px auto; }
-.invitation-banner { display:flex; align-items:center; justify-content:center; gap:10px; padding:16px; background:#e6f2e9; color:var(--green); line-height:1.5; font-size:13px; }
+.invitation-card {
+  width: min(460px, calc(100vw - 32px));
+  margin: 24px auto;
+}
+.invitation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: #e6f2e9;
+  color: var(--green);
+  line-height: 1.5;
+  font-size: 13px;
+}
 .space-picker {
   display: flex;
   gap: 16px;

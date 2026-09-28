@@ -82,6 +82,12 @@ test("familias: migración conservadora, colaboración, referencias, aislamiento
         .rows[0].reference,
       "Transferencia 123",
     );
+    assert.equal(
+      (await db.query<{ user_id: string }>("select user_id from movements"))
+        .rows[0].user_id,
+      a,
+      "Editar conserva el autor original",
+    );
     await assert.rejects(() => db.exec(`update movements set user_id='${b}'`));
     await assert.rejects(() => db.exec(`update movements set family_id=null`));
     await assert.rejects(() =>

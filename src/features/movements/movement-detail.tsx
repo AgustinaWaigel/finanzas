@@ -15,6 +15,7 @@ export function MovementDetail({
   edit,
   remove,
   busy,
+  author,
 }: {
   item: Movement;
   currency: Currency;
@@ -22,6 +23,7 @@ export function MovementDetail({
   edit: () => void;
   remove: () => void;
   busy: boolean;
+  author: string;
 }) {
   const [url, setUrl] = useState(""),
     [error, setError] = useState("");
@@ -57,6 +59,8 @@ export function MovementDetail({
         <dd>{item.name}</dd>
         <dt>Fecha</dt>
         <dd>{item.date.split("-").reverse().join("/")}</dd>
+        <dt>Cargado por</dt>
+        <dd>{author}</dd>
         <dt>Categoría</dt>
         <dd>{category?.name || "Sin categoría"}</dd>
         <dt>Referencia</dt>

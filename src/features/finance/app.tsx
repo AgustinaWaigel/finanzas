@@ -102,6 +102,7 @@ export default function FinanceApp({
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState(""),
     [kindFilter, setKindFilter] = useState("all"),
+    [memberFilter, setMemberFilter] = useState("all"),
     [mobileMenu, setMobileMenu] = useState(false);
   const current =
     currencies.find((c) => c.code === currency) || initialCurrencies[0];
@@ -157,7 +158,7 @@ export default function FinanceApp({
       const [m, c, b, cur] = await Promise.all([
         all(
           "movements",
-          "id,date,name,amount:amount_text,currency,kind,category_id,note,receipt_path" +
+          "id,user_id,date,name,amount:amount_text,currency,kind,category_id,note,receipt_path" +
             (enabled ? ",reference" : ""),
         ),
         all("categories", "id,name,color,kind,active"),
@@ -218,6 +219,7 @@ export default function FinanceApp({
         setActiveFamilyId(null);
         setDataReady(false);
         setPreferPersonal(false);
+        setMemberFilter("all");
         openedExpense.current = null;
       }
       setUser(next?.user ?? null);
@@ -260,6 +262,7 @@ export default function FinanceApp({
     return () => window.removeEventListener("focus", onFocus);
   }, [user, modal, busy, refresh]);
   function changeSpace(personal: boolean) {
+    setMemberFilter("all");
     generation.current++;
     setRows([]);
     setCategories([]);
@@ -407,6 +410,19 @@ export default function FinanceApp({
   if (!authReady)
     return <div className="center-screen">Preparando tu espacio…</div>;
   if (!user) return <Auth configured={!!supabase} />;
+  function authorName(id: string) {
+    const member = members.find((m) => m.user_id === id);
+    if (member)
+      return `${member.display_name}${id === user?.id ? " (vos)" : ""}`;
+    if (id === user?.id) return "Vos";
+    return id ? `Exintegrante (${id.slice(0, 8)})` : "Autor no disponible";
+  }
+  const authorIds = [
+    ...new Set([
+      ...members.map((m) => m.user_id),
+      ...rows.map((r) => r.user_id).filter(Boolean),
+    ]),
+  ];
   const expenseCategories = categories.filter((c) => c.kind === "expense");
   const monthBudgets = budgets.filter(
     (b) => b.month.startsWith(month) && b.currency === currency,
@@ -424,6 +440,10 @@ export default function FinanceApp({
   const filtered = selected
     .filter(
       (r) =>
+        (tab !== "Movimientos" ||
+          !activeFamilyId ||
+          memberFilter === "all" ||
+          r.user_id === memberFilter) &&
         (kindFilter === "all" || r.kind === kindFilter) &&
         `${r.name} ${r.note} ${r.reference || ""} ${categories.find((c) => c.id === r.category_id)?.name || ""}`
           .toLocaleLowerCase("es")
@@ -456,6 +476,9 @@ export default function FinanceApp({
                 · {r.date.split("-").reverse().join("/")}
                 {r.receipt_path ? " · Ticket" : ""}
               </small>
+              <small className="movement-author">
+                Cargado por {authorName(r.user_id)}
+              </small>
             </span>
             <strong className={r.kind === "income" ? "positive" : ""}>
               {r.kind === "income" ? "+" : "−"}
@@ -467,9 +490,34 @@ export default function FinanceApp({
       </div>
     ) : (
       <Empty
-        title="Todavía no hay movimientos"
-        text="Registrá tu primer ingreso o gasto para empezar a ver tus números."
-        action={() => setModal({ type: "movement" })}
+        title={
+          tab === "Movimientos" &&
+          (memberFilter !== "all" || search || kindFilter !== "all")
+            ? "No hay movimientos para estos filtros"
+            : "Todavía no hay movimientos"
+        }
+        text={
+          tab === "Movimientos" &&
+          (memberFilter !== "all" || search || kindFilter !== "all")
+            ? "Probá con otro integrante, tipo o búsqueda."
+            : "Registrá tu primer ingreso o gasto para empezar a ver tus números."
+        }
+        action={
+          tab === "Movimientos" &&
+          (memberFilter !== "all" || search || kindFilter !== "all")
+            ? () => {
+                setMemberFilter("all");
+                setKindFilter("all");
+                setSearch("");
+              }
+            : () => setModal({ type: "movement" })
+        }
+        actionLabel={
+          tab === "Movimientos" &&
+          (memberFilter !== "all" || search || kindFilter !== "all")
+            ? "Limpiar filtros"
+            : "Agregar movimiento"
+        }
       />
     );
   return (
@@ -852,6 +900,20 @@ export default function FinanceApp({
               {tab === "Movimientos" && (
                 <section className="card">
                   <div className="list-filters">
+                    {activeFamilyId && (
+                      <select
+                        aria-label="Filtrar por integrante"
+                        value={memberFilter}
+                        onChange={(e) => setMemberFilter(e.target.value)}
+                      >
+                        <option value="all">Todos los integrantes</option>
+                        {authorIds.map((id) => (
+                          <option key={id} value={id}>
+                            {authorName(id)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <input
                       aria-label="Buscar movimientos"
                       placeholder="Buscar por concepto, categoría o nota…"
@@ -1135,6 +1197,7 @@ export default function FinanceApp({
             modal.read && modal.item ? (
               <MovementDetail
                 item={modal.item}
+                author={authorName(modal.item.user_id)}
                 currency={currencies.find(
                   (c) => c.code === modal.item!.currency,
                 )!}
