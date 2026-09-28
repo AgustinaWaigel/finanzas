@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Copy, Plus, Users, Smartphone } from "lucide-react";
+import { Copy, Plus, Users, Smartphone, Share2 } from "lucide-react";
+import { invitationLink, invitationToken } from "./invitation";
 import { supabase } from "@/lib/supabase";
 import { errorText } from "@/lib/errors";
 export type Family = { id: string; name: string; owner_id: string };
@@ -24,7 +25,7 @@ export function FamilyPanel({
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [code, setCode] = useState(""),
+    [shareLink, setShareLink] = useState(""),
     [message, setMessage] = useState("");
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -124,9 +125,9 @@ export function FamilyPanel({
                   <div className="invite-box">
                     <h3>Sumá a tu familia</h3>
                     <p className="help">
-                      Generá un código y compartilo por el medio que prefieras.
+                      Generá un enlace y compartilo por el medio que prefieras.
                       Sirve para una persona, vence en 7 días y reemplaza al
-                      código anterior.
+                      enlace anterior.
                     </p>
                     <button
                       className="primary"
@@ -137,20 +138,22 @@ export function FamilyPanel({
                             "create_family_invite",
                           );
                           if (error) throw error;
-                          setCode(data);
+                          setShareLink(
+                            invitationLink(window.location.origin, data),
+                          );
                         })
                       }
                     >
                       <Plus size={16} />
                       Generar invitación
                     </button>
-                    {code && (
+                    {shareLink && (
                       <>
                         <label className="invite-code">
-                          Código de invitación
+                          Enlace de invitación
                           <input
                             readOnly
-                            value={code}
+                            value={shareLink}
                             onFocus={(e) => e.target.select()}
                           />
                         </label>
@@ -158,13 +161,42 @@ export function FamilyPanel({
                           className="text-button"
                           onClick={() =>
                             void run(async () => {
-                              await navigator.clipboard.writeText(code);
-                              setMessage("Código copiado.");
+                              await navigator.clipboard.writeText(shareLink);
+                              setMessage("Enlace copiado.");
                             })
                           }
                         >
                           <Copy size={16} />
-                          Copiar código
+                          Copiar enlace
+                        </button>
+                        <button
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(async () => {
+                              if (navigator.share) {
+                                try {
+                                  await navigator.share({
+                                    title: "Sumate a nuestra familia en Clara",
+                                    text: "Te invito a compartir nuestras finanzas familiares.",
+                                    url: shareLink,
+                                  });
+                                } catch (e) {
+                                  if (
+                                    (e as { name?: string }).name !==
+                                    "AbortError"
+                                  )
+                                    throw e;
+                                }
+                              } else {
+                                await navigator.clipboard.writeText(shareLink);
+                                setMessage("Enlace copiado para compartir.");
+                              }
+                            })
+                          }
+                        >
+                          <Share2 size={16} />
+                          Compartir
                         </button>
                       </>
                     )}
@@ -221,36 +253,37 @@ export function FamilyPanel({
                     e.preventDefault();
                     const f = new FormData(e.currentTarget);
                     void run(async () => {
-                      const { error } = await supabase!.rpc("join_family", {
-                        invite_code: String(f.get("invite_code")).trim(),
-                        member_name: String(f.get("member_name")).trim(),
-                      });
-                      if (error) throw error;
-                      await onChange();
+                      const token = invitationToken(
+                        String(f.get("invite_link")).trim(),
+                        window.location.origin,
+                      );
+                      if (!token)
+                        throw new Error(
+                          "Pegá el enlace completo de invitación a esta app.",
+                        );
+                      window.location.assign(
+                        invitationLink(window.location.origin, token),
+                      );
                     });
                   }}
                 >
                   <h3>Unirme a mi familia</h3>
                   <label>
-                    Código de invitación
+                    Enlace de invitación
                     <input
-                      name="invite_code"
+                      name="invite_link"
+                      type="url"
                       required
                       autoComplete="off"
-                      pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-                      placeholder="Pegá el código que te compartieron"
+                      placeholder="Pegá el enlace que te compartieron"
                     />
                   </label>
-                  <label>
-                    Tu nombre
-                    <input name="member_name" required maxLength={60} />
-                  </label>
                   <p className="help">
-                    Tus datos personales se conservan separados. Desde el
-                    selector de espacio vas a poder consultar el grupo.
+                    También podés abrir directamente el enlace que recibiste.
+                    Tus datos personales se conservan separados.
                   </p>
                   <button className="primary full" disabled={busy}>
-                    Unirme al grupo
+                    Abrir invitación
                   </button>
                 </form>
               </div>

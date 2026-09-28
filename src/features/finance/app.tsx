@@ -27,6 +27,10 @@ import {
   type FamilyMember,
 } from "@/features/family/family-panel";
 import { errorText } from "@/lib/errors";
+import {
+  pendingInvitation,
+  invitationLink,
+} from "@/features/family/invitation";
 import { Empty, ModalShell } from "@/components/ui";
 import { Auth } from "@/features/auth/auth-form";
 import { AnnualOverview } from "@/features/reports/annual-overview";
@@ -52,7 +56,7 @@ type Tab =
   | "Resumen"
   | "Movimientos"
   | "Presupuestos"
-  | "Vista anual"
+  | "Ver gastos"
   | "Categorías"
   | "Grupo Familiar";
 type Modal =
@@ -64,7 +68,7 @@ const tabs = [
   { name: "Resumen", icon: LayoutDashboard },
   { name: "Movimientos", icon: ArrowLeftRight },
   { name: "Presupuestos", icon: Wallet },
-  { name: "Vista anual", icon: ChartNoAxesCombined },
+  { name: "Ver gastos", icon: ChartNoAxesCombined },
   { name: "Categorías", icon: Tags },
   { name: "Grupo Familiar", icon: Users },
 ] as const;
@@ -227,6 +231,13 @@ export default function FinanceApp({
   useEffect(() => {
     if (!user || !dataReady || openedExpense.current === user.id) return;
     openedExpense.current = user.id;
+    const invitation = pendingInvitation();
+    if (invitation) {
+      window.location.assign(
+        invitationLink(window.location.origin, invitation),
+      );
+      return;
+    }
     let mobileFirst = true;
     try {
       mobileFirst =
@@ -589,7 +600,7 @@ export default function FinanceApp({
                     ? "Cada movimiento cuenta. Encontralos todos acá."
                     : tab === "Presupuestos"
                       ? "Dale un lugar a cada peso. Y a cada dólar."
-                      : tab === "Vista anual"
+                      : tab === "Ver gastos"
                         ? "Una mirada amplia a tu año, mes a mes."
                         : "Organizá tus movimientos a tu manera."}
               </p>
@@ -633,9 +644,9 @@ export default function FinanceApp({
             <div className="filters">
               <div className="period">
                 <label htmlFor="period">
-                  {tab === "Vista anual" ? "Año" : "Período"}
+                  {tab === "Ver gastos" ? "Año" : "Período"}
                 </label>
-                {tab === "Vista anual" ? (
+                {tab === "Ver gastos" ? (
                   <input
                     id="period"
                     aria-label="Año"
@@ -677,7 +688,7 @@ export default function FinanceApp({
               </span>
             </div>
           )}
-          {(tab === "Resumen" || tab === "Vista anual") && (
+          {(tab === "Resumen" || tab === "Ver gastos") && (
             <div
               className="report-tabs"
               role="group"
@@ -692,10 +703,10 @@ export default function FinanceApp({
               </button>
               <button
                 type="button"
-                aria-pressed={tab === "Vista anual"}
-                onClick={() => setTab("Vista anual")}
+                aria-pressed={tab === "Ver gastos"}
+                onClick={() => setTab("Ver gastos")}
               >
-                Vista anual
+                Ver gastos
               </button>
             </div>
           )}
@@ -919,7 +930,7 @@ export default function FinanceApp({
                   )}
                 </div>
               )}
-              {tab === "Vista anual" && (
+              {tab === "Ver gastos" && (
                 <>
                   <AnnualOverview
                     rows={rows}

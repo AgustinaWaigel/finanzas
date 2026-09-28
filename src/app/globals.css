@@ -998,6 +998,8 @@ footer span {
 .mobile-only {
   display: none;
 }
+.invitation-card { width: min(460px,calc(100vw - 32px)); margin: 24px auto; }
+.invitation-banner { display:flex; align-items:center; justify-content:center; gap:10px; padding:16px; background:#e6f2e9; color:var(--green); line-height:1.5; font-size:13px; }
 .space-picker {
   display: flex;
   gap: 16px;
