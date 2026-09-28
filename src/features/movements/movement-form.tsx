@@ -13,7 +13,8 @@ export function MovementForm({
   currency,
   busy,
   submit,
-  expenseOnly=false,
+  expenseOnly = false,
+  referenceEnabled = true,
 }: {
   item?: Movement;
   categories: Category[];
@@ -22,21 +23,26 @@ export function MovementForm({
   busy: boolean;
   submit: (e: React.FormEvent<HTMLFormElement>) => void;
   expenseOnly?: boolean;
+  referenceEnabled?: boolean;
 }) {
   const [kind, setKind] = useState(item?.kind || "expense");
   return (
     <form onSubmit={submit}>
-      {expenseOnly?<input type="hidden" name="kind" value="expense"/>:<label>
-        Tipo de movimiento
-        <select
-          name="kind"
-          value={kind}
-          onChange={(e) => setKind(e.target.value as Movement["kind"])}
-        >
-          <option value="expense">Gasto</option>
-          <option value="income">Ingreso</option>
-        </select>
-      </label>}
+      {expenseOnly ? (
+        <input type="hidden" name="kind" value="expense" />
+      ) : (
+        <label>
+          Tipo de movimiento
+          <select
+            name="kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as Movement["kind"])}
+          >
+            <option value="expense">Gasto</option>
+            <option value="income">Ingreso</option>
+          </select>
+        </label>
+      )}
       <label>
         {kind === "expense" ? "Ítem o nombre de la compra" : "Concepto"}
         <input
@@ -113,25 +119,19 @@ export function MovementForm({
           defaultValue={item?.note}
         />
       </label>
-      {kind === "expense" && (
-        <>
-          <label className="upload">
-            Foto del ticket (opcional)
-            <input
-              name="receipt"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-            />
-            <small>JPG, PNG o WebP · Hasta 5 MB · Solo vos podés acceder</small>
-          </label>
-          {item?.receipt_path && (
-            <label className="checkbox">
-              <input type="checkbox" name="remove_receipt" />
-              Quitar ticket actual
-            </label>
-          )}
-        </>
-      )}
+      <label>
+        Referencia (opcional)
+        <input
+          name="reference"
+          maxLength={200}
+          defaultValue={item?.reference || ""}
+          disabled={!referenceEnabled}
+          placeholder="Comercio, comprobante, transferencia..."
+        />
+        {!referenceEnabled && (
+          <small>Disponible al aplicar la nueva migración de familias.</small>
+        )}
+      </label>
       <button disabled={busy} className="primary full">
         {busy ? "Guardando…" : "Guardar movimiento"}
       </button>

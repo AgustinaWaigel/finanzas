@@ -8,8 +8,16 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/gasto",
     scope: "/",
     shortcuts: [
-      {name:"Agregar gasto",url:"/gasto",description:"Abrir directamente el formulario de gasto"},
-      {name:"Ver resumen",url:"/panel",description:"Consultar las finanzas"},
+      {
+        name: "Agregar gasto",
+        url: "/gasto",
+        description: "Abrir directamente el formulario de gasto",
+      },
+      {
+        name: "Ver resumen",
+        url: "/panel",
+        description: "Consultar las finanzas",
+      },
     ],
     display: "standalone",
     background_color: "#f7f8fa",

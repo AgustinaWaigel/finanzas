@@ -17,6 +17,7 @@ export type Movement = {
   kind: "expense" | "income";
   category_id: string | null;
   note: string;
+  reference?: string;
   receipt_path: string | null;
 };
 export type Budget = {

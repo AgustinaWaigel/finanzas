@@ -59,6 +59,8 @@ export function MovementDetail({
         <dd>{item.date.split("-").reverse().join("/")}</dd>
         <dt>Categoría</dt>
         <dd>{category?.name || "Sin categoría"}</dd>
+        <dt>Referencia</dt>
+        <dd className="note-text">{item.reference || "Sin referencia"}</dd>
         <dt>Nota</dt>
         <dd className="note-text">{item.note || "Sin nota"}</dd>
       </dl>

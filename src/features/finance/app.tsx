@@ -21,7 +21,11 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { FamilyPanel, type Family, type FamilyMember } from '@/features/family/family-panel';
+import {
+  FamilyPanel,
+  type Family,
+  type FamilyMember,
+} from "@/features/family/family-panel";
 import { errorText } from "@/lib/errors";
 import { Empty, ModalShell } from "@/components/ui";
 import { Auth } from "@/features/auth/auth-form";
@@ -45,7 +49,12 @@ import {
   today,
 } from "./model";
 type Tab =
-  "Resumen" | "Movimientos" | "Presupuestos" | "Vista anual" | "Categorías" | "Grupo Familiar";
+  | "Resumen"
+  | "Movimientos"
+  | "Presupuestos"
+  | "Vista anual"
+  | "Categorías"
+  | "Grupo Familiar";
 type Modal =
   | { type: "movement"; item?: Movement; read?: boolean; expenseOnly?: boolean }
   | { type: "category"; item?: Category }
@@ -59,9 +68,20 @@ const tabs = [
   { name: "Categorías", icon: Tags },
   { name: "Grupo Familiar", icon: Users },
 ] as const;
-export default function FinanceApp({initialExpense=false,summaryOnly=false}:{initialExpense?:boolean;summaryOnly?:boolean}) {
-  const [family,setFamily]=useState<Family|null>(null),[members,setMembers]=useState<FamilyMember[]>([]),[familyEnabled,setFamilyEnabled]=useState(false),[preferPersonal,setPreferPersonal]=useState(false),[activeFamilyId,setActiveFamilyId]=useState<string|null>(null),[dataReady,setDataReady]=useState(false);
-  const openedExpense=useRef<string|null>(null);
+export default function FinanceApp({
+  initialExpense = false,
+  summaryOnly = false,
+}: {
+  initialExpense?: boolean;
+  summaryOnly?: boolean;
+}) {
+  const [family, setFamily] = useState<Family | null>(null),
+    [members, setMembers] = useState<FamilyMember[]>([]),
+    [familyEnabled, setFamilyEnabled] = useState(false),
+    [preferPersonal, setPreferPersonal] = useState(false),
+    [activeFamilyId, setActiveFamilyId] = useState<string | null>(null),
+    [dataReady, setDataReady] = useState(false);
+  const openedExpense = useRef<string | null>(null);
   const [user, setUser] = useState<User | null>(null),
     [authReady, setAuthReady] = useState(!supabase),
     [tab, setTab] = useState<Tab>("Resumen");
@@ -94,23 +114,35 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
     setLoading(true);
     setError("");
     try {
-      const familyResult=await supabase.from('families').select('id,name,owner_id').maybeSingle();
-      const missingSchema=familyResult.error && ['42P01','PGRST205'].includes(familyResult.error.code);
-      if(familyResult.error&&!missingSchema)throw familyResult.error;
-      const nextFamily=(familyResult.data as Family|null)??null;
-      const enabled=!missingSchema;
-      const scope=!preferPersonal&&nextFamily?nextFamily.id:null;
-      const memberResult=nextFamily?await supabase.from('family_members').select('user_id,family_id,display_name').eq('family_id',nextFamily.id):{data:[],error:null};
-      if(memberResult.error)throw memberResult.error;
+      const familyResult = await supabase
+        .from("families")
+        .select("id,name,owner_id")
+        .maybeSingle();
+      const missingSchema =
+        familyResult.error &&
+        ["42P01", "PGRST205"].includes(familyResult.error.code);
+      if (familyResult.error && !missingSchema) throw familyResult.error;
+      const nextFamily = (familyResult.data as Family | null) ?? null;
+      const enabled = !missingSchema;
+      // La disponibilidad de familias no depende de las columnas de movimientos.
+      if (gen === generation.current) setFamilyEnabled(enabled);
+      const scope = !preferPersonal && nextFamily ? nextFamily.id : null;
+      const memberResult = nextFamily
+        ? await supabase
+            .from("family_members")
+            .select("user_id,family_id,display_name")
+            .eq("family_id", nextFamily.id)
+        : { data: [], error: null };
+      if (memberResult.error) throw memberResult.error;
       // Paginar evita el límite predeterminado de 1.000 filas de PostgREST.
       async function all(table: string, columns: string) {
         const result: unknown[] = [];
         for (let offset = 0; ; offset += 500) {
-          let query = supabase!
-            .from(table)
-            .select(columns)
-            .order("id");
-          if(enabled)query=scope?query.eq('family_id',scope):query.is('family_id',null);
+          let query = supabase!.from(table).select(columns).order("id");
+          if (enabled)
+            query = scope
+              ? query.eq("family_id", scope)
+              : query.is("family_id", null);
           const { data, error } = await query.range(offset, offset + 499);
           if (error) throw error;
           result.push(...data);
@@ -121,7 +153,8 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
       const [m, c, b, cur] = await Promise.all([
         all(
           "movements",
-          "id,date,name,amount:amount_text,currency,kind,category_id,note,receipt_path",
+          "id,date,name,amount:amount_text,currency,kind,category_id,note,receipt_path" +
+            (enabled ? ",reference" : ""),
         ),
         all("categories", "id,name,color,kind,active"),
         all("budgets", "id,month,category_id,currency,amount:amount_text"),
@@ -129,7 +162,11 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
       ]);
       if (cur.error) throw cur.error;
       if (gen === generation.current) {
-        setFamily(nextFamily);setMembers((memberResult.data??[]) as FamilyMember[]);setFamilyEnabled(enabled);setActiveFamilyId(scope);setDataReady(true);
+        setFamily(nextFamily);
+        setMembers((memberResult.data ?? []) as FamilyMember[]);
+        setFamilyEnabled(enabled);
+        setActiveFamilyId(scope);
+        setDataReady(true);
         setRows(m as Movement[]);
         setCategories(
           (c as Category[]).sort((a, b) => a.name.localeCompare(b.name, "es")),
@@ -138,7 +175,19 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
         setCurrencies(cur.data);
       }
     } catch (e) {
-      if (gen === generation.current) {setError(errorText(e));setRows([]);setCategories([]);setBudgets([]);setDataReady(false);}
+      if (gen === generation.current) {
+        const failure = e as { code?: string; message?: string };
+        setError(
+          ["42703", "PGRST204"].includes(failure.code ?? "") &&
+            /reference/i.test(failure.message ?? "")
+            ? "Falta el campo Referencia. Ejecutá 202609280003_reference_repair.sql en Supabase y tocá Reintentar carga. No repitas la migración de familias."
+            : errorText(e),
+        );
+        setRows([]);
+        setCategories([]);
+        setBudgets([]);
+        setDataReady(false);
+      }
     } finally {
       if (gen === generation.current) setLoading(false);
     }
@@ -160,7 +209,12 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
         setModal(null);
         setNotice("");
         setError("");
-        setFamily(null);setMembers([]);setActiveFamilyId(null);setDataReady(false);setPreferPersonal(false);openedExpense.current=null;
+        setFamily(null);
+        setMembers([]);
+        setActiveFamilyId(null);
+        setDataReady(false);
+        setPreferPersonal(false);
+        openedExpense.current = null;
       }
       setUser(next?.user ?? null);
       setAuthReady(true);
@@ -170,22 +224,42 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
   useEffect(() => {
     if (user) void refresh();
   }, [user, refresh]);
-  useEffect(()=>{
-    if(!user||!dataReady||openedExpense.current===user.id)return;
-    openedExpense.current=user.id;
-    let mobileFirst=true;
-    try{mobileFirst=localStorage.getItem(`clara:expense-first:${user.id}`)!=='false';}catch{}
-    if(initialExpense||(!summaryOnly&&window.matchMedia('(max-width: 600px)').matches&&mobileFirst))setModal({type:'movement',expenseOnly:true});
-  },[user,dataReady,initialExpense,summaryOnly]);
-  useEffect(()=>{
-    if(!user)return;
-    const onFocus=()=>{if(!modal&&!busy)void refresh();};
-    window.addEventListener('focus',onFocus);
-    return()=>window.removeEventListener('focus',onFocus);
-  },[user,modal,busy,refresh]);
-  function changeSpace(personal:boolean){generation.current++;setRows([]);setCategories([]);setBudgets([]);setLoading(true);setDataReady(false);setModal(null);setPreferPersonal(personal);}
+  useEffect(() => {
+    if (!user || !dataReady || openedExpense.current === user.id) return;
+    openedExpense.current = user.id;
+    let mobileFirst = true;
+    try {
+      mobileFirst =
+        localStorage.getItem(`clara:expense-first:${user.id}`) !== "false";
+    } catch {}
+    if (
+      initialExpense ||
+      (!summaryOnly &&
+        window.matchMedia("(max-width: 600px)").matches &&
+        mobileFirst)
+    )
+      setModal({ type: "movement", expenseOnly: true });
+  }, [user, dataReady, initialExpense, summaryOnly]);
+  useEffect(() => {
+    if (!user) return;
+    const onFocus = () => {
+      if (!modal && !busy) void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [user, modal, busy, refresh]);
+  function changeSpace(personal: boolean) {
+    generation.current++;
+    setRows([]);
+    setCategories([]);
+    setBudgets([]);
+    setLoading(true);
+    setDataReady(false);
+    setModal(null);
+    setPreferPersonal(personal);
+  }
   async function operation(fn: () => Promise<void | string>) {
-    if (busy) return;
+    if (busy || loading || !dataReady) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -236,25 +310,9 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
       const amount = parseAmount(String(f.get("amount")), cur.decimals);
       const name = String(f.get("name")).trim();
       if (!name) throw new Error("Ingresá un concepto.");
-      let path = old?.receipt_path ?? null;
-      const file = f.get("receipt") as File;
-      let uploaded: string | null = null;
-      if (f.get("remove_receipt") || kind === "income") path = null;
-      if (kind === "expense" && file?.size) {
-        if (
-          file.size > 5242880 ||
-          !["image/jpeg", "image/png", "image/webp"].includes(file.type)
-        )
-          throw new Error("Elegí una imagen JPG, PNG o WebP de hasta 5 MB.");
-        uploaded = `${user!.id}/${crypto.randomUUID()}.${file.type.split("/")[1]}`;
-        const { error } = await supabase!.storage
-          .from("receipts")
-          .upload(uploaded, file, { contentType: file.type });
-        if (error) throw error;
-        path = uploaded;
-      }
+      const path = kind === "expense" ? (old?.receipt_path ?? null) : null;
       const payload = {
-        ...(!old&&familyEnabled?{family_id:activeFamilyId}:{}),
+        ...(!old && familyEnabled ? { family_id: activeFamilyId } : {}),
         date: String(f.get("date")),
         name,
         kind,
@@ -263,15 +321,14 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
         category_id: f.get("category_id") || null,
         note: String(f.get("note")).trim(),
         receipt_path: path,
+        ...(familyEnabled
+          ? { reference: String(f.get("reference") || "").trim() }
+          : {}),
       };
       const result = old
         ? await supabase!.from("movements").update(payload).eq("id", old.id)
         : await supabase!.from("movements").insert(payload);
-      if (result.error) {
-        if (uploaded)
-          await supabase!.storage.from("receipts").remove([uploaded]);
-        throw result.error;
-      }
+      if (result.error) throw result.error;
       if (old?.receipt_path && old.receipt_path !== path) {
         const cleanup = await supabase!.storage
           .from("receipts")
@@ -289,7 +346,7 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
     const f = new FormData(event.currentTarget);
     await operation(async () => {
       const payload = {
-        ...(!old&&familyEnabled?{family_id:activeFamilyId}:{}),
+        ...(!old && familyEnabled ? { family_id: activeFamilyId } : {}),
         name: String(f.get("name")).trim(),
         color: String(f.get("color")),
         kind: String(f.get("kind")),
@@ -319,10 +376,20 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
           currencies.find((c) => c.code === code)!.decimals,
         ),
       };
-      const existing=old??budgets.find(b=>b.month===payload.month&&b.category_id===payload.category_id&&b.currency===payload.currency);
+      const existing =
+        old ??
+        budgets.find(
+          (b) =>
+            b.month === payload.month &&
+            b.category_id === payload.category_id &&
+            b.currency === payload.currency,
+        );
       const { error } = existing
         ? await supabase!.from("budgets").update(payload).eq("id", existing.id)
-        : await supabase!.from("budgets").insert({...payload,...(familyEnabled?{family_id:activeFamilyId}:{})});
+        : await supabase!.from("budgets").insert({
+            ...payload,
+            ...(familyEnabled ? { family_id: activeFamilyId } : {}),
+          });
       if (error) throw error;
     });
   }
@@ -347,7 +414,7 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
     .filter(
       (r) =>
         (kindFilter === "all" || r.kind === kindFilter) &&
-        `${r.name} ${r.note} ${categories.find((c) => c.id === r.category_id)?.name || ""}`
+        `${r.name} ${r.note} ${r.reference || ""} ${categories.find((c) => c.id === r.category_id)?.name || ""}`
           .toLocaleLowerCase("es")
           .includes(search.toLocaleLowerCase("es")),
     )
@@ -420,7 +487,9 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
           </span>
           clara<span className="brand-dot">.</span>
         </a>
-        <p className="sidebar-label">TU ESPACIO PERSONAL</p>
+        <p className="sidebar-label">
+          {activeFamilyId ? "TU ESPACIO FAMILIAR" : "TU ESPACIO PERSONAL"}
+        </p>
         <nav>
           {tabs.map(({ name, icon: Icon }) => (
             <button
@@ -442,8 +511,12 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
           <div className="privacy">
             <ShieldCheck size={20} />
             <div>
-              <strong>Solo para vos</strong>
-              <small>Tus datos son privados</small>
+              <strong>{activeFamilyId ? "En familia" : "Solo para vos"}</strong>
+              <small>
+                {activeFamilyId
+                  ? "Solo los integrantes"
+                  : "Tus datos son privados"}
+              </small>
             </div>
           </div>
           <button
@@ -474,13 +547,37 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
             <Menu />
           </button>
           <span>
-            Mi espacio <span className="breadcrumb">/ {tab}</span>
+            {activeFamilyId ? family?.name : "Mi espacio"}{" "}
+            <span className="breadcrumb">/ {tab}</span>
           </span>
           <span className="topbar-right">
             <span className="status-dot" /> Finanzas personales
           </span>
         </header>
         <div className="content">
+          {family && (
+            <div className="space-picker">
+              <label>
+                Espacio
+                <select
+                  aria-label="Espacio de finanzas"
+                  value={preferPersonal ? "personal" : "family"}
+                  disabled={busy}
+                  onChange={(e) => changeSpace(e.target.value === "personal")}
+                >
+                  <option value="family">{family.name} · Compartido</option>
+                  <option value="personal">Mi espacio personal</option>
+                </select>
+              </label>
+              <button
+                className="text-button"
+                disabled={busy || loading}
+                onClick={() => void refresh()}
+              >
+                Actualizar datos
+              </button>
+            </div>
+          )}
           <div className="page-heading">
             <div>
               <div className="eyebrow">UN POCO DE CLARIDAD, TODOS LOS DÍAS</div>
@@ -532,7 +629,7 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
               </button>
             </div>
           )}
-          {tab !== "Categorías" && (
+          {tab !== "Categorías" && tab !== "Grupo Familiar" && (
             <div className="filters">
               <div className="period">
                 <label htmlFor="period">
@@ -608,6 +705,18 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
             </div>
           ) : (
             <>
+              {tab === "Grupo Familiar" && (
+                <FamilyPanel
+                  family={family}
+                  members={members}
+                  enabled={familyEnabled}
+                  userId={user.id}
+                  onChange={async () => {
+                    if (preferPersonal) changeSpace(false);
+                    else await refresh();
+                  }}
+                />
+              )}
               {tab === "Resumen" && (
                 <>
                   <div className="summary-grid">
@@ -989,7 +1098,9 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
                 ? "Detalle del movimiento"
                 : modal.item
                   ? "Editar movimiento"
-                  : "Nuevo movimiento"
+                  : modal.expenseOnly
+                    ? "Agregar gasto"
+                    : "Nuevo movimiento"
               : modal.type === "category"
                 ? modal.item
                   ? "Editar categoría"
@@ -1029,7 +1140,9 @@ export default function FinanceApp({initialExpense=false,summaryOnly=false}:{ini
                 currencies={currencies}
                 categories={categories}
                 currency={currency}
-                busy={busy}
+                busy={busy || loading || !dataReady}
+                expenseOnly={modal.expenseOnly}
+                referenceEnabled={familyEnabled}
                 submit={(e) => void saveMovement(e, modal.item)}
               />
             )

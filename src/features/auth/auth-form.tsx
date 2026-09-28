@@ -69,7 +69,7 @@ export function Auth({ configured }: { configured: boolean }) {
             </span>
             <span>
               <Check />
-              Tus tickets, siempre a mano
+              Cada gasto con su referencia
             </span>
             <span>
               <Check />
@@ -131,7 +131,7 @@ export function Auth({ configured }: { configured: boolean }) {
                     type="email"
                     autoComplete="email"
                     required
-                    placeholder="vos@ejemplo.com"
+                    placeholder="JuanPerez@ejemplo.com"
                   />
                 </label>
                 {mode !== "reset" && (

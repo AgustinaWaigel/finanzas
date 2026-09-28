@@ -45,6 +45,7 @@ create policy members_read on public.family_members for select to authenticated 
 
 alter table public.categories add column family_id uuid references public.families on delete restrict;
 alter table public.movements add column family_id uuid references public.families on delete restrict;
+alter table public.movements add column reference text not null default '' check(length(reference)<=200);
 alter table public.budgets add column family_id uuid references public.families on delete restrict;
 alter table public.movements drop constraint movements_category_id_user_id_fkey;
 alter table public.budgets drop constraint budgets_category_id_user_id_fkey;
@@ -64,7 +65,7 @@ create index on public.budgets(family_id);
 -- No se permite cambiar autor o espacio mediante la API de edición.
 revoke update on public.categories,public.movements,public.budgets from authenticated;
 grant update(name,color,kind,active) on public.categories to authenticated;
-grant update(date,name,amount,currency,kind,category_id,note,receipt_path) on public.movements to authenticated;
+grant update(date,name,amount,currency,kind,category_id,note,receipt_path,reference) on public.movements to authenticated;
 grant update(month,category_id,currency,amount) on public.budgets to authenticated;
 
 drop policy categories_owner on public.categories;

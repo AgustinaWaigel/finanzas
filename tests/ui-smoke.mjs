@@ -12,6 +12,8 @@ const context = await browser.newContext({
 const errors = [];
 const deletedReceipts = [];
 const tables = {
+  families: [],
+  family_members: [],
   movements: [],
   budgets: [],
   categories: [
@@ -78,6 +80,22 @@ await context.route("**/*", async (route) => {
     });
   if (url.pathname.includes("/auth/v1/user")) return response(user);
   if (url.pathname.includes("/auth/v1/logout")) return response({});
+  if (url.pathname.endsWith("/rpc/create_family")) {
+    const body = req.postDataJSON();
+    const id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    tables.families = [{ id, name: body.family_name, owner_id: user.id }];
+    tables.family_members = [
+      { family_id: id, user_id: user.id, display_name: body.member_name },
+    ];
+    if (body.share_existing)
+      for (const t of ["movements", "categories", "budgets"])
+        tables[t].forEach((r) => {
+          r.family_id = id;
+        });
+    return response(id);
+  }
+  if (url.pathname.endsWith("/rpc/create_family_invite"))
+    return response("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
   if (url.pathname.includes("/storage/v1/object/")) {
     if (req.method() === "GET")
       return route.fulfill({
@@ -93,6 +111,7 @@ await context.route("**/*", async (route) => {
     return response({ Key: url.pathname.split("/object/")[1] });
   }
   const table = url.pathname.split("/").pop();
+  if (table === "families") return response(tables.families[0] ?? null);
   if (!(table in tables)) return response({});
   const filter = url.searchParams.get("id")?.replace("eq.", "");
   if (req.method() === "POST") {
@@ -113,7 +132,16 @@ await context.route("**/*", async (route) => {
     tables[table] = tables[table].filter((x) => x.id !== filter);
     return response(null);
   }
-  return response(tables[table]);
+  const familyFilter = url.searchParams.get("family_id");
+  return response(
+    tables[table].filter(
+      (r) =>
+        !familyFilter ||
+        (familyFilter === "is.null"
+          ? r.family_id == null
+          : r.family_id === familyFilter.slice(3)),
+    ),
+  );
 });
 const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
@@ -129,19 +157,14 @@ try {
   await page.getByLabel("Ítem o nombre de la compra").fill("Compra de prueba");
   await page.getByLabel("Importe", { exact: false }).fill("1234,56");
   await page.locator("select[name=category_id]").selectOption("c1");
-  await page
-    .locator('input[name="receipt"]')
-    .setInputFiles("public/icons/icon-192.png");
+  await page.locator('input[name="reference"]').fill("Transferencia 123");
+  assert.equal(await page.locator('input[type="file"]').count(), 0);
   await page.getByRole("button", { name: "Guardar movimiento" }).click();
   await page.getByRole("button", { name: /Compra de prueba/ }).waitFor();
   assert.equal(tables.movements[0].amount, "1234.56");
-  assert.ok(
-    tables.movements[0].receipt_path.startsWith(
-      "11111111-1111-1111-1111-111111111111/",
-    ),
-  );
+  assert.equal(tables.movements[0].reference, "Transferencia 123");
   await page.getByRole("button", { name: /Compra de prueba/ }).click();
-  await page.getByRole("img", { name: "Ticket de Compra de prueba" }).waitFor();
+  await page.getByText("Transferencia 123", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Editar", exact: true }).click();
   await page.getByLabel("Importe", { exact: false }).fill("2000,10");
   await page.getByRole("button", { name: "Guardar movimiento" }).click();
@@ -237,7 +260,57 @@ try {
     .getByRole("heading", { name: "Todavía no hay movimientos" })
     .waitFor();
   assert.equal(tables.movements.length, 1);
-  assert.equal(deletedReceipts.length, 1);
+  assert.equal(deletedReceipts.length, 0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page
+    .locator("aside")
+    .getByRole("button", { name: "Grupo Familiar", exact: true })
+    .click();
+  await page.locator('input[name="family_name"]').fill("Familia de prueba");
+  await page
+    .locator("form")
+    .filter({ has: page.locator('input[name="family_name"]') })
+    .locator('input[name="member_name"]')
+    .fill("Ana");
+  await page
+    .getByRole("button", { name: "Crear grupo familiar", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Familia de prueba", exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: "Generar invitación" }).click();
+  assert.equal(
+    await page.getByLabel("Código de invitación").inputValue(),
+    "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  );
+  await page.getByLabel("Espacio de finanzas").selectOption("personal");
+  await page.getByRole("button", { name: "Resumen", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Todavía no hay movimientos" })
+    .waitFor();
+  await page.getByLabel("Espacio de finanzas").selectOption("family");
+  await page.goto(
+    new URL("/gasto", process.env.TEST_BASE_URL || "http://localhost:3001")
+      .href,
+  );
+  await page
+    .getByRole("heading", { name: "Agregar gasto", exact: true })
+    .waitFor();
+  assert.equal(await page.locator('dialog select[name="kind"]').count(), 0);
+  assert.equal(
+    await page.locator('dialog input[name="kind"]').inputValue(),
+    "expense",
+  );
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  assert.equal(await page.locator("dialog").count(), 0);
+  await page.goto(
+    new URL("/panel", process.env.TEST_BASE_URL || "http://localhost:3001")
+      .href,
+  );
+  await page
+    .getByRole("heading", { name: "Tus finanzas, en orden." })
+    .waitFor();
+  assert.equal(await page.locator("dialog").count(), 0);
   assert.deepEqual(errors, []);
   console.log(
     "UI OK: login, vacío, alta/edición/baja, monedas, presupuestos, categorías, vista anual y responsive.",
