@@ -10,6 +10,8 @@ const context = await browser.newContext({
   serviceWorkers: "block",
 });
 const errors = [];
+let sessionUserId = "11111111-1111-1111-1111-111111111111";
+let joins = 0;
 const deletedReceipts = [];
 const tables = {
   families: [],
@@ -56,7 +58,7 @@ await context.route("**/*", async (route) => {
     return;
   }
   const user = {
-    id: "11111111-1111-1111-1111-111111111111",
+    id: sessionUserId,
     email: "prueba@example.com",
     aud: "authenticated",
     role: "authenticated",
@@ -96,6 +98,14 @@ await context.route("**/*", async (route) => {
   }
   if (url.pathname.endsWith("/rpc/create_family_invite"))
     return response("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+  if (url.pathname.endsWith("/rpc/join_family")) {
+    assert.equal(
+      req.postDataJSON().invite_code,
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    );
+    joins++;
+    return response(tables.families[0].id);
+  }
   if (url.pathname.includes("/storage/v1/object/")) {
     if (req.method() === "GET")
       return route.fulfill({
@@ -232,7 +242,7 @@ try {
   await page.getByRole("button", { name: "Abrir menú" }).click();
   await page
     .locator("aside")
-    .getByRole("button", { name: "Vista anual", exact: true })
+    .getByRole("button", { name: /^(Vista anual|Ver gastos)$/ })
     .click();
   assert.equal(await page.locator(".interactive-chart button").count(), 12);
   await page.getByText("Saldo del año", { exact: true }).waitFor();
@@ -279,9 +289,11 @@ try {
     .getByRole("heading", { name: "Familia de prueba", exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Generar invitación" }).click();
+  const sharedLink = await page.getByLabel("Enlace de invitación").inputValue();
+  assert.equal(new URL(sharedLink).pathname, "/unirse");
   assert.equal(
-    await page.getByLabel("Código de invitación").inputValue(),
-    "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    new URL(sharedLink).hash,
+    "#bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
   );
   await page.getByLabel("Espacio de finanzas").selectOption("personal");
   await page.getByRole("button", { name: "Resumen", exact: true }).click();
@@ -311,6 +323,30 @@ try {
     .getByRole("heading", { name: "Tus finanzas, en orden." })
     .waitFor();
   assert.equal(await page.locator("dialog").count(), 0);
+  // Otro integrante abre el enlace sin sesión. Autenticar no consume la invitación.
+  await page.evaluate(() => localStorage.clear());
+  sessionUserId = "22222222-2222-2222-2222-222222222222";
+  await page.goto(sharedLink);
+  await page.getByLabel("Correo electrónico").fill("familiar@example.com");
+  await page.getByLabel("Contraseña", { exact: true }).fill("clave-de-prueba");
+  await page.getByRole("button", { name: "Ingresar", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "Unirme a mi familia", exact: true })
+    .waitFor();
+  assert.equal(joins, 0);
+  await page.reload();
+  await page.getByLabel("Tu nombre", { exact: true }).fill("Beto");
+  await page
+    .getByRole("button", { name: "Unirme al grupo", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Ya sos parte de la familia" })
+    .waitFor();
+  assert.equal(joins, 1);
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem("clara:pending-invitation")),
+    null,
+  );
   assert.deepEqual(errors, []);
   console.log(
     "UI OK: login, vacío, alta/edición/baja, monedas, presupuestos, categorías, vista anual y responsive.",
