@@ -229,10 +229,12 @@ export function Distribution({
   currency: Currency;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = items.find(c => c.id === selectedId);
+  const selected = items.find((c) => c.id === selectedId);
   const percentage = (amount: Decimal) => {
     const value = total.gt(0) ? amount.div(total).mul(100) : new Decimal(0);
-    return value.gt(0) && value.lt(0.1) ? "<0,1" : value.toFixed(1).replace(".", ",");
+    return value.gt(0) && value.lt(0.1)
+      ? "<0,1"
+      : value.toFixed(1).replace(".", ",");
   };
   const data = items.map((c) => ({
     ...c,
@@ -267,8 +269,7 @@ export function Distribution({
                   <div className="finance-chart-tooltip">
                     <strong>{d.name}</strong>
                     <span>
-                      {money(d.total, currency)} (
-                      {percentage(d.total)}%)
+                      {money(d.total, currency)} ({percentage(d.total)}%)
                     </span>
                   </div>
                 ) : null;
@@ -279,17 +280,52 @@ export function Distribution({
         <div className="recharts-donut-total">
           <small>{selected?.name ?? "Total de gastos"}</small>
           <strong>{money(selected?.total ?? total, currency)}</strong>
-          <small>{selected ? `${percentage(selected.total)}% del total` : `${items.length} ${items.length === 1 ? "categoría" : "categorías"} · ${currency.code}`}</small>
+          <small>
+            {selected
+              ? `${percentage(selected.total)}% del total`
+              : `${items.length} ${items.length === 1 ? "categoría" : "categorías"} · ${currency.code}`}
+          </small>
         </div>
       </div>
-      <p className="distribution-hint">Tocá una categoría para ver su detalle.</p>
-      {selected && <button type="button" className="distribution-reset" onClick={() => setSelectedId(null)}>Ver total de gastos</button>}
+      <p className="distribution-hint">
+        Tocá una categoría para ver su detalle.
+      </p>
+      {selected && (
+        <button
+          type="button"
+          className="distribution-reset"
+          onClick={() => setSelectedId(null)}
+        >
+          Ver total de gastos
+        </button>
+      )}
       <div className="category-breakdown">
         {items.map((c) => (
-          <button type="button" key={c.id} className="category-breakdown-row" aria-pressed={selected?.id === c.id} onClick={() => setSelectedId(selectedId === c.id ? null : c.id)}>
-            <span className="category-breakdown-heading"><span><i style={{ background: c.color }} />{c.name}</span><span className="category-percentage">{percentage(c.total)}%</span></span>
+          <button
+            type="button"
+            key={c.id}
+            className="category-breakdown-row"
+            aria-pressed={selected?.id === c.id}
+            onClick={() => setSelectedId(selectedId === c.id ? null : c.id)}
+          >
+            <span className="category-breakdown-heading">
+              <span>
+                <i style={{ background: c.color }} />
+                {c.name}
+              </span>
+              <span className="category-percentage">
+                {percentage(c.total)}%
+              </span>
+            </span>
             <strong>{money(c.total, currency)}</strong>
-            <span className="category-meter" aria-hidden="true"><span style={{ background: c.color, width: `${total.gt(0) ? c.total.div(total).mul(100).toNumber() : 0}%` }} /></span>
+            <span className="category-meter" aria-hidden="true">
+              <span
+                style={{
+                  background: c.color,
+                  width: `${total.gt(0) ? c.total.div(total).mul(100).toNumber() : 0}%`,
+                }}
+              />
+            </span>
           </button>
         ))}
       </div>

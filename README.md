@@ -104,6 +104,20 @@ public/                     Íconos y service worker
 
 ## Verificación y puesta en producción
 
+### Google y sesiones persistentes
+
+La pantalla de acceso incluye **Continuar con Google**. Para activarlo:
+
+1. En Google Cloud / Google Auth Platform, configurá la pantalla de consentimiento y creá un cliente OAuth de tipo **Aplicación web**. Mientras esté en pruebas, agregá los correos familiares como usuarios de prueba.
+2. En **URIs de redireccionamiento autorizados** del cliente Google, agregá el callback que muestra Supabase en Authentication → Sign In / Providers → Google: `https://<project-ref>.supabase.co/auth/v1/callback`.
+3. Activá Google en ese panel de Supabase y guardá allí el Client ID y Client Secret. El secreto no va en `.env.local` ni en variables `NEXT_PUBLIC_*`.
+4. En Supabase → Authentication → URL Configuration, configurá Site URL con tu dominio y permití las URLs exactas `/`, `/gasto` y `/panel` de tu dominio. Para desarrollo agregá `http://localhost:3000/`, `http://localhost:3000/gasto` y `http://localhost:3000/panel`.
+5. Probá entrar con Google en navegador y desde la PWA instalada. Las invitaciones se conservan localmente durante el acceso y se retoman al volver.
+
+El cliente guarda la sesión y renueva los tokens automáticamente. Cerrar sesión afecta solamente al dispositivo actual. Para permitir sesiones duraderas y varios dispositivos, no actives límites de inactividad/duración ni la opción de sesión única en Supabase. No es necesario alargar la expiración del JWT. Borrar datos del navegador, usar incógnito o revocar la sesión puede requerir volver a entrar; el navegador y la PWA pueden tener almacenamiento separado según el sistema.
+
+Referencias: [Google en Supabase](https://supabase.com/docs/guides/auth/social-login/auth-google), [sesiones](https://supabase.com/docs/guides/auth/sessions). La configuración externa y la prueba con una cuenta Google real deben hacerse en el proyecto del usuario; no requieren migraciones SQL.
+
 Los gráficos de barras y distribución usan Recharts con contenedores responsive. Los totales y etiquetas conservan precisión con decimal.js; únicamente las proporciones visuales se convierten a números para dibujar. El selector de día/mes permite consultar los importes también con teclado.
 
 Cada movimiento muestra quién lo cargó originalmente. En Movimientos, el espacio familiar permite filtrar por integrante junto con moneda, tipo y búsqueda. Editar un movimiento no cambia su autor. Si una persona sale del grupo, su historial conserva el identificador y aparece como exintegrante con una referencia a ese identificador.

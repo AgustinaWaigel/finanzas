@@ -12,6 +12,7 @@ const context = await browser.newContext({
 const errors = [];
 let sessionUserId = "11111111-1111-1111-1111-111111111111";
 let joins = 0;
+const googleRequests = [];
 const deletedReceipts = [];
 const tables = {
   families: [],
@@ -56,6 +57,10 @@ await context.route("**/*", async (route) => {
       },
     });
     return;
+  }
+  if (url.pathname === "/auth/v1/authorize") {
+    googleRequests.push(url);
+    return route.fulfill({ status: 302, headers: { location: url.searchParams.get("redirect_to") + "#error=access_denied" } });
   }
   const user = {
     id: sessionUserId,
@@ -157,12 +162,20 @@ const page = await context.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 try {
   await page.goto(process.env.TEST_BASE_URL || "http://localhost:3001");
+  await page.getByRole("button", { name: "Continuar con Google" }).click();
+  await page.getByText("No se pudo completar el acceso con Google.", { exact: false }).waitFor();
+  assert.equal(googleRequests.length, 1);
+  assert.equal(googleRequests[0].searchParams.get("provider"), "google");
+  assert.equal(new URL(googleRequests[0].searchParams.get("redirect_to")).origin, new URL(page.url()).origin);
   await page.getByLabel("Correo electrónico").fill("prueba@example.com");
   await page.getByLabel("Contraseña", { exact: true }).fill("clave-de-prueba");
   await page.getByRole("button", { name: "Ingresar", exact: true }).click();
   await page
     .getByRole("heading", { name: "Tus finanzas, en orden." })
     .waitFor();
+  await page.reload();
+  await page.getByRole("heading", { name: "Tus finanzas, en orden." }).waitFor();
+  assert.equal(await page.getByLabel("Correo electrónico").count(), 0, "La sesión sobrevive a recargar");
   await page.getByRole("button", { name: "Nuevo movimiento" }).click();
   await page.getByLabel("Ítem o nombre de la compra").fill("Compra de prueba");
   await page.getByLabel("Importe", { exact: false }).fill("1234,56");
@@ -242,6 +255,10 @@ try {
     /2\.000,10/,
   );
   await page.getByRole("heading", { name: "Tus finanzas, en orden." }).hover();
+  await page.getByRole("button", { name: /Supermercado.*100,0%/ }).click();
+  assert.match(await page.locator(".recharts-donut-total").innerText(), /Supermercado/);
+  await page.getByRole("button", { name: "Ver total de gastos", exact: true }).click();
+  assert.match(await page.locator(".recharts-donut-total").innerText(), /Total de gastos/);
   await mkdir("test-results", { recursive: true });
   await page.screenshot({
     path: "test-results/desktop.png",
