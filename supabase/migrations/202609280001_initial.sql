@@ -68,8 +68,8 @@ create function public.seed_categories() returns trigger language plpgsql securi
 begin
  insert into public.categories(user_id,name,color,kind)
  select new.id,n,'#'||c,'expense' from unnest(
- array['Otros','Supermercado','Escuela','Servicios','Donaciones y ayudas','Verdulería','Gastos de papi','Gastos de la casa','Dietética','Gastos fijos','Viajes papi','Salud y seguros','Transporte','Mascotas','Lujos'],
- array['7c8798','176b51','6366f1','e8a139','db7093','70a545','7182bc','bc845e','68a89b','64748b','4a98b5','da7272','8b77bb','bf975b','ba73a6']) as t(n,c);
+ array['Otros','Supermercado','Servicios','Gastos fijos','Salud y seguros','Transporte','Mascotas'],
+ array['7c8798','176b51','e8a139','64748b','da7272','8b77bb','bf975b']) as t(n,c);
  return new;
 end $$;
 create trigger on_auth_user_created after insert on auth.users for each row execute function public.seed_categories();

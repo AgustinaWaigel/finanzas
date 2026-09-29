@@ -643,14 +643,14 @@ export default function FinanceApp({
               <h1>{tab === "Resumen" ? "Tus finanzas, en orden." : tab}</h1>
               <p>
                 {tab === "Resumen"
-                  ? "Entendé dónde estás y decidí hacia dónde querés ir."
+                  ? "Consultá tu saldo mensual, ingresos y gastos."
                   : tab === "Movimientos"
-                    ? "Cada movimiento cuenta. Encontralos todos acá."
+                    ? "Registrá tus ingresos y gastos con fecha, categoría, moneda y notas."
                     : tab === "Presupuestos"
-                      ? "Dale un lugar a cada peso. Y a cada dólar."
+                      ? "  Establecé un límite mensual para cada categoría."
                       : tab === "Ver gastos"
                         ? "Una mirada amplia a tu año, mes a mes."
-                        : "Organizá tus movimientos a tu manera."}
+                        : "Organizá tus ingresos y gastos con categorías personalizadas. "}
               </p>
             </div>
             <button

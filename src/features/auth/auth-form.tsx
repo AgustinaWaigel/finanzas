@@ -54,26 +54,26 @@ export function Auth({ configured }: { configured: boolean }) {
         <div>
           <span className="eyebrow">TU DINERO. TUS DECISIONES.</span>
           <h1>
-            Un poco de orden.
+            Claridad en tus finanzas.
             <br />
-            Mucho más aire.
+            Menos preocupaciones.
           </h1>
           <p>
             Un espacio simple para entender tus gastos, planear tu mes y cuidar
-            lo que viene.
+            tu futuro.
           </p>
           <div className="auth-features">
             <span>
               <Check />
-              Cada moneda por separado
+              Tus números, siempre claros
             </span>
             <span>
               <Check />
-              Cada gasto con su referencia
+              Cada gasto, bien identificado
             </span>
             <span>
               <Check />
-              Tus datos, solo tuyos
+              Tu información, bajo tu control
             </span>
           </div>
         </div>

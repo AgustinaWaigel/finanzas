@@ -50,6 +50,9 @@ export function ModalShell({
     <dialog
       ref={ref}
       className="modal"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) close();
+      }}
       onCancel={(e) => {
         e.preventDefault();
         if (!busy) close();
