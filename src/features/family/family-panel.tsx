@@ -26,6 +26,7 @@ export function FamilyPanel({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [shareLink, setShareLink] = useState(""),
+    [confirmName, setConfirmName] = useState(""),
     [message, setMessage] = useState("");
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -92,6 +93,30 @@ export function FamilyPanel({
                             : "Integrante"}
                         </small>
                       </span>
+                      {owner && m.user_id !== userId && (
+                        <button
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `¿Pasarle la administración a ${m.display_name}? Vas a seguir en el grupo como integrante y solo esa persona podrá invitar, quitar integrantes o eliminar el grupo.`,
+                              )
+                            )
+                              void run(async () => {
+                                const { error } = await supabase!.rpc(
+                                  "transfer_family_ownership",
+                                  { member_id: m.user_id },
+                                );
+                                if (error) throw error;
+                                setShareLink("");
+                                await onChange();
+                              });
+                          }}
+                        >
+                          Hacer administrador
+                        </button>
+                      )}
                       {m.user_id !== family.owner_id &&
                         (owner || m.user_id === userId) && (
                           <button
@@ -201,6 +226,43 @@ export function FamilyPanel({
                       </>
                     )}
                   </div>
+                )}
+                {owner && (
+                  <form
+                    className="danger-zone"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void run(async () => {
+                        const { error } = await supabase!.rpc("delete_family");
+                        if (error) throw error;
+                        setConfirmName("");
+                        await onChange();
+                      });
+                    }}
+                  >
+                    <h3>Eliminar el grupo</h3>
+                    <p className="help">
+                      Borra para siempre los movimientos, categorías y
+                      presupuestos compartidos, para todos los integrantes. Los
+                      espacios personales no se tocan. Si querés una copia,
+                      exportá antes desde Movimientos.
+                    </p>
+                    <label>
+                      Para confirmar, escribí el nombre del grupo
+                      <input
+                        autoComplete="off"
+                        value={confirmName}
+                        onChange={(e) => setConfirmName(e.target.value)}
+                        placeholder={family.name}
+                      />
+                    </label>
+                    <button
+                      className="danger-button"
+                      disabled={busy || confirmName.trim() !== family.name}
+                    >
+                      Eliminar grupo definitivamente
+                    </button>
+                  </form>
                 )}
               </>
             ) : (

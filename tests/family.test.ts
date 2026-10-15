@@ -71,7 +71,7 @@ test("familias: migración conservadora, colaboración, referencias, aislamiento
     );
     assert.equal(
       (await db.query("select * from categories")).rows.length,
-      30,
+      14,
       "personales y familiares accesibles sin mezclarse en UI",
     );
     await db.exec(

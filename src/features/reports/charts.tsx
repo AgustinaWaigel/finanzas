@@ -25,12 +25,15 @@ export function Summary({
   value,
   icon,
   foot,
+  trend,
   dark = false,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   foot: string;
+  // Comparación con el período anterior.
+  trend?: string;
   dark?: boolean;
 }) {
   return (
@@ -41,6 +44,7 @@ export function Summary({
       </div>
       <strong className="summary-value">{value}</strong>
       <small>{foot}</small>
+      {trend && <small className="summary-trend">{trend}</small>}
     </section>
   );
 }
@@ -169,6 +173,7 @@ export function Evolution({
               />
               <Bar
                 dataKey="incomeHeight"
+                className="income-series"
                 name="Ingresos"
                 fill="#176b51"
                 radius={[4, 4, 0, 0]}

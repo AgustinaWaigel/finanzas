@@ -18,6 +18,8 @@ const tables = {
   families: [],
   family_members: [],
   movements: [],
+  payment_methods: [],
+  transfers: [],
   budgets: [],
   categories: [
     {
@@ -43,6 +45,30 @@ const tables = {
 await context.route("**/*", async (route) => {
   const req = route.request(),
     url = new URL(req.url());
+  // La IA se simula: se comprueba qué manda la app y cómo vuelca la respuesta en el formulario.
+  if (url.pathname === "/api/interpretar") {
+    const body = req.postDataJSON();
+    assert.equal(req.headers().authorization, "Bearer test-access-token");
+    assert.equal(body.text, "mil ochocientos con cincuenta de yerba en el super con mercado pago en 3 cuotas");
+    assert.ok(body.categories.some((c) => c.name === "Supermercado" && c.kind === "expense"));
+    assert.deepEqual(body.methods, ["Mercado Pago"]);
+    assert.equal(Object.keys(body).sort().join(), "categories,currencies,defaultCurrency,methods,text,today");
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        kind: "expense",
+        amount: "1800.50",
+        currency: null,
+        category: "Supermercado",
+        item: "Yerba",
+        date: null,
+        method: "Mercado Pago",
+        installments: 3,
+        more: false,
+      }),
+    });
+  }
   if (!/^\/(auth|rest|storage)\/v1\//.test(url.pathname)) {
     if (url.hostname === "localhost" || url.hostname === "127.0.0.1")
       return route.continue();
@@ -101,6 +127,26 @@ await context.route("**/*", async (route) => {
         });
     return response(id);
   }
+  // Mismo cálculo que payment_balances en SQL, sobre las tablas simuladas.
+  if (url.pathname.endsWith("/rpc/payment_balances")) {
+    const { today } = req.postDataJSON();
+    const cents = (v) => Math.round(Number(v) * 100);
+    return response(
+      tables.payment_methods
+        .filter((p) => p.opening_balance != null)
+        .map((p) => {
+          const inRange = (r) => r.date >= p.balance_date && r.date <= today;
+          let total = cents(p.opening_balance);
+          for (const m of tables.movements)
+            if (m.payment_method_id === p.id && m.currency === p.currency && inRange(m))
+              total += (m.kind === "income" ? 1 : -1) * cents(m.amount);
+          for (const t of tables.transfers)
+            if (inRange(t))
+              total += (t.to_method_id === p.id ? 1 : t.from_method_id === p.id ? -1 : 0) * cents(t.amount);
+          return { method_id: p.id, balance: (total / 100).toFixed(2) };
+        }),
+    );
+  }
   if (url.pathname.endsWith("/rpc/create_family_invite"))
     return response("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
   if (url.pathname.endsWith("/rpc/join_family")) {
@@ -131,17 +177,23 @@ await context.route("**/*", async (route) => {
   const filter = url.searchParams.get("id")?.replace("eq.", "");
   if (req.method() === "POST") {
     const body = req.postDataJSON();
-    if (table === "movements" || table === "budgets")
-      assert.equal(typeof body.amount, "string");
-    tables[table].push({ user_id: user.id, ...body, id: `id-${Date.now()}` });
-    return response(null);
+    const items = (Array.isArray(body) ? body : [body]).map((item, i) => {
+      if (table === "movements" || table === "budgets")
+        assert.equal(typeof item.amount, "string");
+      return {
+        user_id: user.id,
+        created_at: new Date().toISOString(),
+        ...item,
+        id: item.id ?? `id-${Date.now()}-${i}`,
+      };
+    });
+    tables[table].push(...items);
+    return response(items);
   }
   if (req.method() === "PATCH") {
-    Object.assign(
-      tables[table].find((x) => x.id === filter),
-      req.postDataJSON(),
-    );
-    return response(null);
+    const row = tables[table].find((x) => x.id === filter);
+    Object.assign(row, req.postDataJSON());
+    return response([row]);
   }
   if (req.method() === "DELETE") {
     tables[table] = tables[table].filter((x) => x.id !== filter);
@@ -179,7 +231,18 @@ try {
   await page.getByRole("button", { name: "Nuevo movimiento" }).click();
   await page.getByLabel("Ítem o nombre de la compra").fill("Compra de prueba");
   await page.getByLabel("Importe", { exact: false }).fill("1234,56");
-  await page.locator("select[name=category_id]").selectOption("c1");
+  // El importe va primero y la categoría se elige buscando.
+  assert.ok(
+    (await page.locator("dialog input[name=amount]").boundingBox()).y <
+      (await page.locator("dialog input[name=name]").boundingBox()).y,
+  );
+  await page.getByLabel("Categoría", { exact: true }).fill("super");
+  assert.equal(await page.locator("dialog .chip").count(), 2);
+  await page
+    .locator("dialog")
+    .getByRole("button", { name: "Supermercado", exact: true })
+    .click();
+  await page.locator("dialog summary").click();
   await page.locator('input[name="reference"]').fill("Transferencia 123");
   assert.equal(await page.locator('input[type="file"]').count(), 0);
   await page.getByRole("button", { name: "Guardar movimiento" }).click();
@@ -198,15 +261,157 @@ try {
     .getByRole("heading", { name: "Todavía no hay movimientos" })
     .waitFor();
   await page.getByRole("button", { name: "Nuevo movimiento" }).click();
-  await page.locator("select[name=kind]").selectOption("income");
   await page
-    .getByLabel("Concepto", { exact: true })
-    .fill("Ingreso USD de prueba");
+    .locator("dialog")
+    .getByRole("button", { name: "Ingreso", exact: true })
+    .click();
+  await page.getByLabel("Concepto").fill("Ingreso USD de prueba");
   await page.getByLabel("Importe", { exact: false }).fill("300");
   await page.getByRole("button", { name: "Guardar movimiento" }).click();
   await page.getByRole("button", { name: /Ingreso USD de prueba/ }).waitFor();
+  // Cuotas: un total se reparte en un movimiento por mes.
+  await page.getByRole("button", { name: "Nuevo movimiento" }).click();
+  await page.getByLabel("Ítem o nombre de la compra").fill("Notebook");
+  await page.getByLabel("Importe", { exact: false }).fill("1.000");
+  await page
+    .locator("dialog")
+    .getByRole("button", { name: "Supermercado", exact: true })
+    .click();
+  await page.locator("dialog summary").click();
+  await page.locator("select[name=repeat]").selectOption("installments");
+  await page.locator("input[name=repeat_count]").fill("3");
+  await page.getByRole("button", { name: "Guardar movimiento" }).click();
+  await page.getByText("Se cargaron 3 movimientos", { exact: false }).waitFor();
+  const installments = tables.movements.filter((m) => m.name.startsWith("Notebook"));
+  assert.deepEqual(
+    installments.map((m) => [m.name, m.amount]),
+    [
+      ["Notebook (cuota 1/3)", "333.33"],
+      ["Notebook (cuota 2/3)", "333.33"],
+      ["Notebook (cuota 3/3)", "333.34"],
+    ],
+  );
+  assert.equal(new Set(installments.map((m) => m.date.slice(0, 7))).size, 3);
+  // Categoría nueva escrita en el mismo formulario; sin ítem, el movimiento toma su nombre.
+  await page.getByRole("button", { name: "Nuevo movimiento" }).click();
+  await page.getByLabel("Importe", { exact: false }).fill("450");
+  await page.getByLabel("Categoría", { exact: true }).fill("Kiosco nuevo");
+  await page.getByRole("button", { name: "Crear “Kiosco nuevo”" }).click();
+  await page.getByText("Nueva categoría:", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Guardar movimiento" }).click();
+  await page.getByRole("button", { name: /Kiosco nuevo/ }).first().waitFor();
+  const created = tables.categories.find((c) => c.name === "Kiosco nuevo");
+  assert.equal(created.kind, "expense");
+  assert.match(created.color, /^#[0-9a-f]{6}$/);
+  const quick = tables.movements.find((m) => m.name === "Kiosco nuevo");
+  assert.equal(quick.category_id, created.id);
+  assert.equal(quick.amount, "450.00");
+  // Medios de pago cargados a mano: alta rápida, compra en cuotas y total comprometido.
+  await page.getByRole("button", { name: "Medios de pago", exact: true }).click();
+  assert.equal(new URL(page.url()).searchParams.get("tab"), "medios");
+  await page.getByRole("button", { name: "+ Mercado Pago" }).click();
+  await page.getByRole("button", { name: "Editar Mercado Pago" }).waitFor();
+  assert.equal(tables.payment_methods[0].kind, "wallet");
+  await page.getByRole("button", { name: "Agregar movimiento" }).click();
+  await page.getByLabel("Importe", { exact: false }).fill("600");
+  await page
+    .locator("dialog")
+    .getByRole("button", { name: "Supermercado", exact: true })
+    .click();
+  await page
+    .locator("dialog")
+    .getByRole("button", { name: "Mercado Pago", exact: true })
+    .click();
+  await page.getByLabel("Ítem o nombre de la compra").fill("Auriculares");
+  await page.locator("dialog summary").click();
+  await page.locator("select[name=repeat]").selectOption("installments");
+  await page.locator("input[name=repeat_count]").fill("2");
+  await page.getByRole("button", { name: "Guardar movimiento" }).click();
+  await page.getByText("Se cargaron 2 movimientos", { exact: false }).waitFor();
+  const paid = tables.movements.filter((m) => m.name.startsWith("Auriculares"));
+  assert.equal(paid.length, 2);
+  assert.ok(paid.every((m) => m.payment_method_id === tables.payment_methods[0].id));
+  assert.match(await page.locator(".method-total").innerText(), /US\$ 300,00/);
+  assert.match(await page.locator(".method-pending").innerText(), /1 pago futuro[\s\S]*US\$ 300,00/);
+  // Dictado con IA: la frase completa el formulario y no se guarda hasta confirmar.
+  await page.getByRole("button", { name: "Agregar movimiento" }).click();
+  await page
+    .getByLabel("Decilo con tus palabras")
+    .fill("mil ochocientos con cincuenta de yerba en el super con mercado pago en 3 cuotas");
+  await page.getByRole("button", { name: "Interpretar la frase" }).click();
+  await page.getByText("Listo. Revisá los datos y guardá.").waitFor();
+  assert.equal(await page.locator("dialog input[name=amount]").inputValue(), "1.800,50");
+  assert.equal(await page.locator("dialog input[name=name]").inputValue(), "Yerba");
+  assert.equal(
+    await page.locator("dialog input[name=category_id]").inputValue(),
+    "c1",
+  );
+  assert.equal(
+    await page.locator("dialog input[name=payment_method_id]").inputValue(),
+    tables.payment_methods[0].id,
+  );
+  assert.equal(await page.locator("dialog select[name=repeat]").inputValue(), "installments");
+  assert.equal(await page.locator("dialog input[name=repeat_count]").inputValue(), "3");
+  const before = tables.movements.length;
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await page.locator("dialog").waitFor({ state: "detached" });
+  assert.equal(tables.movements.length, before, "interpretar no guarda nada");
+  // Cuenta con saldo: saldo inicial, un gasto y una transferencia a Mercado Pago.
+  await page.getByRole("button", { name: "Nuevo medio de pago" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Banco");
+  await page.locator("dialog select[name=kind]").selectOption("debit");
+  await page.locator("dialog select[name=currency]").selectOption("USD");
+  await page.getByLabel("Llevar el saldo de esta cuenta").check();
+  await page.getByLabel("Saldo inicial").fill("1.000");
+  await page.getByRole("button", { name: "Guardar medio de pago" }).click();
+  await page.getByRole("button", { name: "Editar Banco" }).waitFor();
+  const bank = tables.payment_methods.find((p) => p.name === "Banco");
+  assert.equal(bank.opening_balance, "1000.00");
+  assert.equal(bank.currency, "USD");
+  assert.match(await page.locator(".balance-grid").innerText(), /US\$ 1\.000,00/);
+  await page.getByRole("button", { name: "Editar Mercado Pago" }).click();
+  await page.locator("dialog select[name=currency]").selectOption("USD");
+  await page.getByLabel("Llevar el saldo de esta cuenta").check();
+  await page.getByLabel("Saldo inicial").fill("0");
+  await page.getByRole("button", { name: "Guardar medio de pago" }).click();
+  // Mercado Pago ya tenía la cuota de hoy: 0 − 300.
+  await page.getByText("−US$ 300,00").first().waitFor();
+  await page.getByRole("button", { name: "Transferir o pagar tarjeta" }).click();
+  await page.getByLabel("Importe", { exact: false }).fill("400");
+  await page.locator("dialog select[name=from_method_id]").selectOption(bank.id);
+  await page.locator("dialog select[name=to_method_id]").selectOption({ label: "Mercado Pago" });
+  await page.getByRole("button", { name: "Guardar transferencia" }).click();
+  await page.getByText("Transferencia registrada.").waitFor();
+  assert.equal(tables.transfers[0].amount, "400.00");
+  // Banco 1000 − 400; Mercado Pago −300 + 400; el total no cambia por transferir.
+  await page.getByText("US$ 600,00").first().waitFor();
+  await page.getByText("US$ 100,00").first().waitFor();
+  assert.match(await page.locator(".balance-grid").innerText(), /US\$ 700,00/);
+  // Tarjeta con cierre: la compra de hoy cae en el resumen que corresponde.
+  await page.getByRole("button", { name: "+ Tarjeta de crédito" }).click();
+  await page.getByRole("button", { name: "Editar Tarjeta de crédito" }).click();
+  await page.getByLabel("Día de cierre").fill("1");
+  await page.getByLabel("Día de vencimiento").fill("10");
+  await page.getByRole("button", { name: "Guardar medio de pago" }).click();
+  await page.locator(".statement").waitFor();
+  assert.match(await page.locator(".statement").innerText(), /Cierra el 1\/\d+ · vence el 10\/\d+/);
+  await page.getByRole("button", { name: "Resumen", exact: true }).click();
+  // Sin categoría, un gasto no se guarda.
+  await page.getByRole("button", { name: "Nuevo movimiento" }).click();
+  await page.getByLabel("Importe", { exact: false }).fill("10");
+  await page.getByRole("button", { name: "Guardar movimiento" }).click();
+  await page.getByText("Elegí una categoría o escribí una nueva.").waitFor();
+  await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await page.locator("dialog").waitFor({ state: "detached" });
+  // El botón atrás cierra el diálogo sin salir de la app.
+  await page.getByRole("button", { name: "Nuevo movimiento" }).click();
+  await page.locator("dialog").waitFor();
+  await page.goBack();
+  await page.locator("dialog").waitFor({ state: "detached" });
+  await page.getByRole("heading", { name: "Tus finanzas, en orden." }).waitFor();
   await page.getByRole("button", { name: "ARS", exact: true }).click();
   await page.getByRole("button", { name: "Presupuestos", exact: true }).click();
+  assert.equal(new URL(page.url()).searchParams.get("tab"), "presupuestos");
   await page.getByRole("button", { name: "Nuevo presupuesto" }).click();
   await page.locator("select[name=category_id]").selectOption("c1");
   await page.getByLabel("Presupuesto", { exact: true }).fill("5000");
@@ -304,15 +509,21 @@ try {
   await page.getByRole("button", { name: "Abrir menú" }).click();
   await page.getByRole("button", { name: "Movimientos", exact: true }).click();
   await page.getByRole("button", { name: /Compra de prueba/ }).click();
-  page.once("dialog", (d) => d.dismiss());
-  await page.getByRole("button", { name: "Eliminar movimiento" }).click();
-  assert.equal(tables.movements.length, 2, "Cancelar preserva el movimiento");
-  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Eliminar movimiento" }).click();
   await page
     .getByRole("heading", { name: "Todavía no hay movimientos" })
     .waitFor();
-  assert.equal(tables.movements.length, 1);
+  await page.getByRole("button", { name: "Deshacer", exact: true }).click();
+  await page.getByRole("button", { name: /Compra de prueba/ }).waitFor();
+  assert.equal(tables.movements.length, 8, "Deshacer preserva el movimiento");
+  await page.getByRole("button", { name: /Compra de prueba/ }).click();
+  await page.getByRole("button", { name: "Eliminar movimiento" }).click();
+  await page
+    .getByRole("heading", { name: "Todavía no hay movimientos" })
+    .waitFor();
+  // La baja llega al servidor cuando vence el plazo para deshacer.
+  await page.waitForTimeout(7000);
+  assert.equal(tables.movements.length, 7);
   assert.equal(deletedReceipts.length, 0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page
@@ -381,6 +592,7 @@ try {
     1,
   );
   await page.getByRole("button", { name: "Cerrar", exact: true }).click();
+  await page.locator("dialog").waitFor({ state: "detached" });
   await page.getByLabel("Filtrar por integrante").selectOption(sessionUserId);
   await page.getByRole("button", { name: /Gasto de Ana/ }).waitFor();
   assert.equal(await page.locator(".movement").count(), 1);
@@ -405,7 +617,7 @@ try {
     "expense",
   );
   await page.getByRole("button", { name: "Cerrar", exact: true }).click();
-  assert.equal(await page.locator("dialog").count(), 0);
+  await page.locator("dialog").waitFor({ state: "detached" });
   await page.goto(
     new URL("/panel", process.env.TEST_BASE_URL || "http://localhost:3001")
       .href,
@@ -440,7 +652,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "UI OK: login, vacío, alta/edición/baja, monedas, presupuestos, categorías, vista anual y responsive.",
+    "UI OK: login, vacío, alta/edición/baja con deshacer, cuotas, monedas, presupuestos, categorías, vista anual, historial y responsive.",
   );
 } finally {
   await browser.close();

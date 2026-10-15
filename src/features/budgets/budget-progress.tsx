@@ -40,6 +40,13 @@ export function BudgetProgress({
         <span>{money(spent, currency)}</span>
         <span>de {money(budget.amount, currency)}</span>
       </div>
+      {percent.gte(80) && percent.lte(100) && (
+        <small className="warning">
+          {percent.gte(100)
+            ? "Llegaste al límite del presupuesto."
+            : `Ya usaste el ${percent.toFixed(0)}%. Te quedan ${money(new Decimal(budget.amount).minus(spent), currency)}.`}
+        </small>
+      )}
       {percent.gt(100) && (
         <small className="negative">
           Superaste el presupuesto por{" "}

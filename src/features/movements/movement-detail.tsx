@@ -16,6 +16,7 @@ export function MovementDetail({
   remove,
   busy,
   author,
+  method,
 }: {
   item: Movement;
   currency: Currency;
@@ -24,6 +25,7 @@ export function MovementDetail({
   remove: () => void;
   busy: boolean;
   author: string;
+  method?: string;
 }) {
   const [url, setUrl] = useState(""),
     [error, setError] = useState("");
@@ -63,6 +65,12 @@ export function MovementDetail({
         <dd>{author}</dd>
         <dt>Categoría</dt>
         <dd>{category?.name || "Sin categoría"}</dd>
+        {method && (
+          <>
+            <dt>Medio de pago</dt>
+            <dd>{method}</dd>
+          </>
+        )}
         <dt>Referencia</dt>
         <dd className="note-text">{item.reference || "Sin referencia"}</dd>
         <dt>Nota</dt>
@@ -72,6 +80,8 @@ export function MovementDetail({
       {item.receipt_path && !url && !error && <p>Cargando ticket privado…</p>}
       {url && (
         <a href={url} target="_blank" rel="noreferrer">
+          {/* El ticket es un blob privado descargado con la sesión: next/image no aplica. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             className="receipt-image"
             src={url}

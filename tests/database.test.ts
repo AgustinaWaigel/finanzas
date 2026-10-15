@@ -25,7 +25,7 @@ test("migración PostgreSQL: RLS, relaciones, precisión, categorías y tickets"
     const cats = await db.query<{ id: string }>(
       "select id from categories order by name",
     );
-    assert.equal(cats.rows.length, 15);
+    assert.equal(cats.rows.length, 7);
     const category = cats.rows[0].id;
     await db.exec(
       `insert into movements(date,name,amount,currency,kind,category_id) values('2026-09-01','Compra',0.10,'ARS','expense','${category}');`,
@@ -65,7 +65,7 @@ test("migración PostgreSQL: RLS, relaciones, precisión, categorías y tickets"
     );
     assert.equal(amounts.rows[0].amount_text, "0.10");
     await db.exec(`set request.jwt.claim.sub='${bob}';`);
-    assert.equal((await db.query("select * from categories")).rows.length, 15);
+    assert.equal((await db.query("select * from categories")).rows.length, 7);
     assert.equal((await db.query("select * from movements")).rows.length, 0);
     assert.equal((await db.query("select * from budgets")).rows.length, 0);
     assert.equal(
@@ -99,7 +99,7 @@ test("migración PostgreSQL: RLS, relaciones, precisión, categorías y tickets"
     await db.exec(
       `set request.jwt.claim.sub='${alice}';delete from movements;delete from budgets;delete from categories where id='${category}';`,
     );
-    assert.equal((await db.query("select * from categories")).rows.length, 14);
+    assert.equal((await db.query("select * from categories")).rows.length, 6);
   } finally {
     await db.close();
   }
